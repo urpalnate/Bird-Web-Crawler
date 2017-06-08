@@ -26,77 +26,71 @@ namespace ParseURL
         //Order of string[]: order and family names, content and images urls respectively
         static void CreateBirds(List<string[]> urls)
         {
-            using (var context = new Context())
+            foreach (string[] dataBundle in urls)
             {
-               
-                foreach (string[] dataBundle in urls)
+                Bird bird = new Bird();
+                if (Orders.ContainsKey(dataBundle[0]))
                 {
-                    Bird bird = new Bird();
-                    if (Orders.ContainsKey(dataBundle[0]))
-                    {
-                        bird.Order = Orders[dataBundle[0]];
-                    }
-                    else
-                    {
-                        Order order = new Order(dataBundle[0]);
-                        bird.Order = order;
-                        order.Birds.Add(bird);
-                        Orders.Add(dataBundle[0], order);
-                        context.Orders.Add(order);
-                    }
-
-                    if (Families.ContainsKey(dataBundle[1]))
-                    {
-                        bird.Family = Families[dataBundle[1]];
-                    }
-                    else
-                    {
-                        Family family = new Family(dataBundle[1]);
-                        Families.Add(dataBundle[1], family);
-                        family.Birds.Add(bird);
-
-                        context.Families.Add(family);
-                    }
-
-                    HtmlWeb web = _web;
-                    try
-                    {
-                        HtmlDocument document = web.Load(dataBundle[2]);
-                        AssignName(bird, document);//
-                        AssignScientificName(bird, document);
-                        List<string> descripText = AssignLengths(bird, document);
-                        AssignIdText(bird, document, descripText);
-                        AssignColors(bird, document);
-                    }
-                    catch (WebException e)
-                    {
-                        Console.WriteLine($"Exception Message: {e.Message}");
-                        Console.WriteLine($"Remote Host Response Status: {e.Status}");
-                        Console.WriteLine($"Remote Host Response: {e.Response}");
-                        Console.WriteLine($"Failed to load content frame: {dataBundle[2]}");
-                        Console.ReadLine();
-                        throw e;
-                    }
-
-                    try
-                    {
-                        HtmlDocument document = web.Load(dataBundle[3]);
-                        AssignImages(bird, document);
-                        context.Birds.Add(bird);
-                    }
-                    catch (WebException e)
-                    {
-                        Console.WriteLine($"Exception Message: {e.Message}");
-                        Console.WriteLine($"Remote Host Response Status: {e.Status}");
-                        Console.WriteLine($"Remote Host Response: {e.Response}");
-                        Console.WriteLine($"Failed to load content frame: {dataBundle[3]}");
-                        Console.ReadLine();
-                        throw e;
-                    }
-                    context.SaveChanges();
-                    //break;
+                    bird.Order = Orders[dataBundle[0]];
                 }
-            }       
+                else
+                {
+                    Order order = new Order(dataBundle[0]);
+                    bird.Order = order;
+                    order.Birds.Add(bird);
+                    Orders.Add(dataBundle[0], order);
+                    Repository.AddOrder(order);
+                }
+
+                if (Families.ContainsKey(dataBundle[1]))
+                {
+                    bird.Family = Families[dataBundle[1]];
+                }
+                else
+                {
+                    Family family = new Family(dataBundle[1]);
+                    Families.Add(dataBundle[1], family);
+                    family.Birds.Add(bird);
+                    Repository.AddFamily(family);
+                }
+
+                HtmlWeb web = _web;
+                try
+                {
+                    HtmlDocument document = web.Load(dataBundle[2]);
+                    AssignName(bird, document);
+                    AssignScientificName(bird, document);
+                    //Assigning Lenghts and ID tips use the same text
+                    List<string> descripText = AssignLengths(bird, document);
+                    AssignIdTips(bird, document, descripText);
+                    AssignColors(bird, document);
+                }
+                catch (WebException e)
+                {
+                    Console.WriteLine($"Exception Message: {e.Message}");
+                    Console.WriteLine($"Remote Host Response Status: {e.Status}");
+                    Console.WriteLine($"Remote Host Response: {e.Response}");
+                    Console.WriteLine($"Failed to load content frame: {dataBundle[2]}");
+                    Console.ReadLine();
+                    throw e;
+                }
+
+                try
+                {
+                    HtmlDocument document = web.Load(dataBundle[3]);
+                    AssignImages(bird, document);
+                    Repository.AddBird(bird);
+                }
+                catch (WebException e)
+                {
+                    Console.WriteLine($"Exception Message: {e.Message}");
+                    Console.WriteLine($"Remote Host Response Status: {e.Status}");
+                    Console.WriteLine($"Remote Host Response: {e.Response}");
+                    Console.WriteLine($"Failed to load content frame: {dataBundle[3]}");
+                    Console.ReadLine();
+                    throw e;
+                }
+            }
         }
 
         //***BIRD METHODS***
@@ -155,7 +149,7 @@ namespace ParseURL
             return primaryIdTips;
         }
         //Import primaryIdTips from AssignLengths to avoid duplication
-        static void AssignIdText(Bird bird, HtmlDocument document, List<string> primaryIdTips)
+        static void AssignIdTips(Bird bird, HtmlDocument document, List<string> primaryIdTips)
         {
             //Identification Tips Section but we don't want the first two
             string next = string.Empty;
@@ -417,14 +411,14 @@ namespace ParseURL
         static void Main(string[] args)
         {
             //**TESTING CODE COMMENTED OUT BELOW**
-            //string content = "https://www.mbr-pwrc.usgs.gov/id/framlst/Idtips/h1620id.html";
-            //string images = "https://www.mbr-pwrc.usgs.gov/id/framlst/photo_htm/p1620.html";
-            //List<string[]> test = new List<string[]> { new string[] { "Order Filler", "Family Filler", "https://www.mbr-pwrc.usgs.gov/id/framlst/i0110id.html", null} };
+            string content = "https://www.mbr-pwrc.usgs.gov/id/framlst/Idtips/h1620id.html";
+            string images = "https://www.mbr-pwrc.usgs.gov/id/framlst/photo_htm/p1620.html";
+            List<string[]> test = new List<string[]> { new string[] { "Order Filler", "Family Filler", content, images} };
             //GetContentFrameURLs(test);
-            //CreateBirds(test);
+            CreateBirds(test);
             //GetTopLevelData(_framesUrl);
 
-            Run(_framesUrl);
+            //Run(_framesUrl);
         }
     }
 }
