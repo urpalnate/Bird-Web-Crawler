@@ -107,7 +107,7 @@ namespace ParseURL
         static void AssignScientificName(Bird bird, HtmlDocument document)
         {
             string h1Inner = document.DocumentNode.SelectSingleNode("/html/body/h1").InnerText;
-            string scienceName = h1Inner.Replace(bird.Name, string.Empty).TrimStart(' ').TrimStart('\r').TrimStart('\n').TrimEnd(' ');
+            string scienceName = h1Inner.Replace(bird.Name, string.Empty).TrimStart(' ', '\r', '\n').TrimEnd(' ');
             bird.ScientificName = scienceName;
         }
         
@@ -263,7 +263,7 @@ namespace ParseURL
         //remove everything but the url
         static string ScrubFamilyAndOrder(string data)
         {
-            return String.Concat(data.SkipWhile(c => c != ':')).TrimStart(':').TrimStart(' ').TrimEnd(' ').TrimEnd('\n').TrimEnd('\r');
+            return String.Concat(data.SkipWhile(c => c != ':')).TrimStart(':', ' ').TrimEnd(' ', '\n', '\r');
         }
 
         static string ScrubDescriptions(string listItem)
