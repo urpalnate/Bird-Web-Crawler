@@ -55,15 +55,16 @@ namespace ParseURL
                 }
 
                 HtmlWeb web = _web;
+                //Here we load the data from the content frame
                 try
                 {
                     HtmlDocument document = web.Load(dataBundle[2]);
                     AssignName(bird, document);
                     AssignScientificName(bird, document);
-                    //Assigning Lenghts and ID tips use the same text
+                    //Assigning Lengths and ID tips use the same text
                     List<string> descripText = AssignLengths(bird, document);
                     AssignIdTips(bird, document, descripText);
-                    AssignColors(bird, document);
+                    AssignColors(bird);
                 }
                 catch (WebException e)
                 {
@@ -77,6 +78,7 @@ namespace ParseURL
 
                 try
                 {
+                    //Grab images from images frame
                     HtmlDocument document = web.Load(dataBundle[3]);
                     AssignImages(bird, document);
                     Repository.AddBird(bird);
@@ -116,11 +118,13 @@ namespace ParseURL
             List<string> primaryIdTips = idText.Split('<').ToList();
             string length = string.Empty;
             string wingspan = string.Empty;
+            //sizes contains the length and wingspan
             string sizes = primaryIdTips[1];
             bool foundLength = false;
 
             for (int i = 0; i < sizes.Length; i++)
             {
+                //length always comes first
                 if (IsANumber(sizes[i]))
                 {
                     if (!foundLength)
@@ -151,8 +155,8 @@ namespace ParseURL
         //Import primaryIdTips from AssignLengths to avoid duplication
         static void AssignIdTips(Bird bird, HtmlDocument document, List<string> primaryIdTips)
         {
-            //Identification Tips Section but we don't want the first two
-            string next = string.Empty;
+            //Identification Tips Section. We don't want the first two
+            string next;
             for (int i = 2; i < primaryIdTips.Count; i++)
             {
                 next = ScrubDescriptions(primaryIdTips[i]);
@@ -161,88 +165,16 @@ namespace ParseURL
                     bird.IdentificationTips.Add(next);
                 }
             }
-
-            //Morph 1
-            var morph1 = document.DocumentNode.SelectSingleNode("/html/body/ul[2]");
-            if (morph1 != null)
-            {
-                string morph1Text = morph1.InnerHtml;
-                List<string> morph1Descriptions = morph1Text.Split('<').ToList();
-                
-                for (int i = 0; i < morph1Descriptions.Count; i++)
-                {
-                    next = ScrubDescriptions(morph1Descriptions[i]);
-                    if (next != null)
-                    {
-                        bird.MorphOne.Add(next);
-                    }
-                }
-            }
-
-            //Morph 2
-            var morph2 = document.DocumentNode.SelectSingleNode("/html/body/ul[3]");
-            if (morph2 != null)
-            {
-                string morph2Text = morph2.InnerHtml;
-                List<string> morph2Descriptions = morph2Text.Split('<').ToList();
-
-                for (int i = 0; i < morph2Descriptions.Count; i++)
-                {
-                    next = ScrubDescriptions(morph2Descriptions[i]);
-                    if (next != null)
-                    {
-                        bird.MorphTwo.Add(next);
-                    }
-                }
-            }
+            //Assign MorphOne and MorphTwo descriptions
+            AssignDescriptionHelper(document, bird.MorphOne, bird);
+            AssignDescriptionHelper(document, bird.MorphTwo, bird);
         }
 
-        static void AssignColors(Bird bird, HtmlDocument document)
+        static void AssignColors(Bird bird)
         {
-            //Colors
-            foreach (string s in bird.IdentificationTips)
-            {
-                var allWords = s.Split(' ', '-');
-                foreach (string w in allWords)
-                {
-                    foreach (string color in Bird.PossibleColors)
-                    {
-                        if (w == color)
-                        {
-                            bird.Colors.Add(color.ToLower());
-                        }
-                    }
-                }
-            }
-            foreach (string s in bird.MorphOne)
-            {
-                var allWords = s.Split(' ', '-');
-                foreach (string w in allWords)
-                {
-                    foreach (string color in Bird.PossibleColors)
-                    {
-                        if (w == color)
-                        {
-                            bird.Colors.Add(color.ToLower());
-                        }
-                    }
-                }
-            }
-
-            foreach (string s in bird.MorphTwo)
-            {
-                var allWords = s.Split(' ', '-');
-                foreach (string w in allWords)
-                {
-                    foreach (string color in Bird.PossibleColors)
-                    {
-                        if (w == color)
-                        {
-                            bird.Colors.Add(color.ToLower());
-                        }
-                    }
-                }
-            }
+            AssignColorsHelper(bird.IdentificationTips, bird);
+            AssignColorsHelper(bird.MorphOne, bird);
+            AssignColorsHelper(bird.MorphTwo, bird);
         }
 
         static void AssignImages(Bird bird, HtmlDocument document)
@@ -281,7 +213,7 @@ namespace ParseURL
         static List<string[]> GetTopLevelData(string url)
         {
             //results will contain an array of 3 strings, order, family and frame url
-            List<string[]> results = new List<string[]>();
+            List<string[]> topLevelData = new List<string[]>();
             HtmlWeb web = _web;
             //This is early in the process so I didn't include exception handling
             HtmlDocument document = web.Load(url);
@@ -300,27 +232,28 @@ namespace ParseURL
                     string familyName = family.FirstChild.InnerText;
                     familyName = ScrubFamilyAndOrder(familyName);
 
-                    //These should be the li's that contain the frame links
+                    //These should be the li's that contain the top level frame links
                     var frameNodes = family.SelectSingleNode("ul").SelectNodes("li");
                     foreach (var frame in frameNodes)
                     {
-                        //The array will eventually hold the content frame url at 2, and the images frame at 3
+                        //The array will eventually hold 4 strings, order, family, content frame url, images frame url
                         string[] result = new string[4];
                         var anchor = frame.FirstChild.ChildAttributes("href");
-                        string frameUrl = string.Empty;
+                        string frameUrl;
                         //This isn't really a collection, it will only have one anchor element
                         foreach (var a in anchor)
                         {
                             frameUrl = _framesUrl + "/" + a.Value;
+                            result[0] = orderName;
+                            result[1] = familyName;
+                            result[2] = frameUrl;
                         }
-                        result[0] = orderName;
-                        result[1] = familyName;
-                        result[2] = frameUrl;
-                        results.Add(result);
+                        
+                        topLevelData.Add(result);
                     }
                 }
             }
-            return results;
+            return topLevelData;
         }
         //Return an XPath with the next li to crawl
         static string TopLevelHelper(int n)
@@ -344,9 +277,47 @@ namespace ParseURL
                     .TrimStart(' ')
                     .TrimEnd(' ');
             }
-            return null;
+            else return null;
         }
 
+        static void AssignDescriptionHelper(HtmlDocument document, List<string> descriptions, Bird bird)
+        {
+            var morph1 = document.DocumentNode.SelectSingleNode("/html/body/ul[2]");
+            string next = string.Empty;
+            if (morph1 != null)
+            {
+                string morph1Text = morph1.InnerHtml;
+                descriptions = morph1Text.Split('<').ToList();
+
+                for (int i = 0; i < descriptions.Count; i++)
+                {
+                    next = ScrubDescriptions(descriptions[i]);
+                    if (next != null)
+                    {
+                        descriptions.Add(next);
+                    }
+                }
+            }
+        }
+
+        static void AssignColorsHelper(List<string> descriptions, Bird bird)
+        {
+            foreach (string s in descriptions)
+            {
+                var allWords = s.Split(' ', '-');
+                foreach (string w in allWords)
+                {
+                    foreach (string color in Bird.PossibleColors)
+                    {
+                        //I need an exact match to avoid false positives, like picking up red from Fred
+                        if (w.ToLower() == color)
+                        {
+                            bird.Colors.Add(color);
+                        }
+                    }
+                }
+            }
+        }
         //This gets the urls inside the frames. Each entry in results will now have the content and images frame urls
         static List<string[]> GetContentFrameURLs(List<string[]> data)
         {

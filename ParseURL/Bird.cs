@@ -25,12 +25,12 @@ namespace ParseURL
         public int Length { get; set; }
         public int WingSpan { get; set; }
         public Size Size { get; set; }
-
-        public static string[] PossibleColors = new string[] { "Pink", "pink", "Pinkish", "pinkish", "Flesh", "flesh", "Flesh-colored", "flesh-colored", "pale", "Pale", "orange", "Orange", "purple", "Purple",
-            "Dark", "dark", "Darker", "darker", "Darkish", "darkish", "Light", "light", "Lighter", "lighter", "White", "white", "Black", "black", "Blackish", "blackish", "Red", "red", "Reddish", "reddish",
-            "Blue", "blue", "Bluish", "bluish", "Yellow", "yellow", "Yellowish", "yellowish", "Green", "green", "Greenish", "greenish", "Gray", "gray", "grayish", "Grayish", "brown", "Brown", "brownish", "Brownish"};
+        //The site seems to limit itself to these colors when describing the birds, but I'm not sure this is exhaustive
+        public static string[] PossibleColors = new string[] { "pink", "pinkish", "flesh", "pale", "orange", "purple",
+            "dark", "darker", "darkish", "light", "lighter", "white", "black", "blackish", "red", "reddish", "gold", "silver", "tan",
+            "blue", "bluish", "yellow", "yellowish", "green", "greenish", "gray", "grayish", "brown", "brownish"};
     }
-
+    //Not yet implemented
     public enum Size { Small, Medium, Large }
 }
 
