@@ -31,27 +31,24 @@ namespace ParseURL
                 Bird bird = new Bird();
                 if (Orders.ContainsKey(dataBundle[0]))
                 {
-                    bird.Order = Orders[dataBundle[0]];
+                    bird.OrderId = Orders[dataBundle[0]].Id;
                 }
                 else
                 {
                     Order order = new Order(dataBundle[0]);
                     bird.Order = order;
-                    order.Birds.Add(bird);
                     Orders.Add(dataBundle[0], order);
-                    Repository.AddOrder(order);
                 }
 
                 if (Families.ContainsKey(dataBundle[1]))
                 {
-                    bird.Family = Families[dataBundle[1]];
+                    bird.FamilyId = Families[dataBundle[1]].Id;
                 }
                 else
                 {
                     Family family = new Family(dataBundle[1]);
                     Families.Add(dataBundle[1], family);
-                    family.Birds.Add(bird);
-                    Repository.AddFamily(family);
+                    bird.Family = family;
                 }
 
                 HtmlWeb web = _web;
@@ -81,7 +78,7 @@ namespace ParseURL
                     //Grab images from images frame
                     HtmlDocument document = web.Load(dataBundle[3]);
                     AssignImages(bird, document);
-                    Repository.AddBird(bird);
+                    Repository.AddBird(bird, bird.OrderId, bird.FamilyId);
                 }
                 catch (WebException e)
                 {
@@ -217,9 +214,10 @@ namespace ParseURL
             HtmlWeb web = _web;
             //This is early in the process so I didn't include exception handling
             HtmlDocument document = web.Load(url);
-            HtmlNodeCollection orders = new HtmlNodeCollection(document.DocumentNode);
             
-            for (int i = 1; i < 23; i++)
+            //There are 22 orders of birds listed
+            //**CHANGE BACK TO < 23***
+            for (int i = 1; i < 2; i++)
             {
                 HtmlNode orderNode = document.DocumentNode.SelectSingleNode(TopLevelHelper(i));
                 string orderName = orderNode.FirstChild.InnerText;
@@ -244,12 +242,12 @@ namespace ParseURL
                         foreach (var a in anchor)
                         {
                             frameUrl = _framesUrl + "/" + a.Value;
+                            //We'll also grab the order and family of the bird here because it's an opportune time
                             result[0] = orderName;
                             result[1] = familyName;
                             result[2] = frameUrl;
+                            topLevelData.Add(result);
                         }
-                        
-                        topLevelData.Add(result);
                     }
                 }
             }
@@ -287,11 +285,11 @@ namespace ParseURL
             if (morph1 != null)
             {
                 string morph1Text = morph1.InnerHtml;
-                descriptions = morph1Text.Split('<').ToList();
+                List<string> tempDescriptions = morph1Text.Split('<').ToList();
 
-                for (int i = 0; i < descriptions.Count; i++)
+                for (int i = 0; i < tempDescriptions.Count; i++)
                 {
-                    next = ScrubDescriptions(descriptions[i]);
+                    next = ScrubDescriptions(tempDescriptions[i]);
                     if (next != null)
                     {
                         descriptions.Add(next);
@@ -386,10 +384,10 @@ namespace ParseURL
             string images = "https://www.mbr-pwrc.usgs.gov/id/framlst/photo_htm/p1620.html";
             List<string[]> test = new List<string[]> { new string[] { "Order Filler", "Family Filler", content, images} };
             //GetContentFrameURLs(test);
-            CreateBirds(test);
+            //CreateBirds(test);
             //GetTopLevelData(_framesUrl);
 
-            //Run(_framesUrl);
+            Run(_framesUrl);
         }
     }
 }

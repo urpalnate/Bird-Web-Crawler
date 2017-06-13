@@ -15,11 +15,11 @@ namespace ParseURL
         public string Name { get; set; }
         [Required]
         public string ScientificName { get; set; }
-        [Required]
+        
         public Family Family { get; set; }
         public int FamilyId { get; set; }
         public int OrderId { get; set; }
-        [Required]
+        
         public Order Order { get; set; }
         public HashSet<string> Colors { get; set; } = new HashSet<string>();
         public int Length { get; set; }
