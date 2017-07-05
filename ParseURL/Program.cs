@@ -27,13 +27,9 @@ namespace ParseURL
         //Order of string[]: order and family names, content and images urls respectively
         static void CreateBirds(List<string[]> urls)
         {
-            //***REMOVE IN PRODUCTION***testing list
-            List<Bird> testData = new List<Bird>();
             foreach (string[] dataBundle in urls)
             {
                 Bird bird = new Bird();
-                //***REMOVE IN PRODUCTION***
-                testData.Add(bird);
                 //Assign Order and Family Navigation Properties
                 if (!Orders.ContainsKey(dataBundle[0]))
                 {
@@ -185,12 +181,20 @@ namespace ParseURL
                 ul++;
             }
             //Assign SimilarSpecies
-            var h3Nodes = document.DocumentNode.Descendants("h3");
+            var h3Nodes = document.DocumentNode.SelectSingleNode("/html/body").Elements("h3");
             foreach (var h3 in h3Nodes)
             {
                 if (h3.InnerText.Contains("Similar"))
                 {
-                    bird.SimilarSpecies = h3.NextSibling.NextSibling.InnerText.Replace(System.Environment.NewLine, string.Empty);
+                    //Some pages are structured differently so we need to do this check
+                    if (h3.NextSibling.NextSibling != null && h3.NextSibling.NextSibling.InnerText.Length > 5)
+                    {
+                        bird.SimilarSpecies = h3.NextSibling.NextSibling.InnerText.Replace(System.Environment.NewLine, string.Empty).TrimStart(' ');
+                    }
+                    else
+                    {
+                        bird.SimilarSpecies = h3.NextSibling.InnerText.Replace(System.Environment.NewLine, string.Empty).TrimStart(' ');
+                    }
                 }
             }
         }
@@ -255,7 +259,7 @@ namespace ParseURL
             HtmlDocument document = web.Load(url);
             
             //There are 22 orders of birds listed so i = 23 is production value
-            for (int i = 1; i < 4; i++)
+            for (int i = 1; i < 23; i++)
             {
                 HtmlNode orderNode = document.DocumentNode.SelectSingleNode(TopLevelHelper(i));
                 string orderName = orderNode.FirstChild.InnerText;
@@ -463,19 +467,44 @@ namespace ParseURL
             return result;
         }
 
+        public static void Test(string url)
+        {
+            // /html/body/text()
+            // /html/body/h1
+            //  /html/body/h1
+            HtmlWeb web = _web;
+            HtmlDocument document = new HtmlDocument();
+            document = web.Load(url);
+            var h3s = document.DocumentNode.SelectSingleNode("/html/body").Elements("h3");
+            foreach (var h3 in h3s)
+            {
+                if (h3.InnerText.Contains("Similar"))
+                {
+                    //Some pages are structured differently so we need to do this check
+                    if (h3.NextSibling.NextSibling != null && h3.NextSibling.NextSibling.InnerText.Length > 5)
+                    {
+                        string s = h3.NextSibling.NextSibling.InnerText.Replace(System.Environment.NewLine, string.Empty);
+                    }
+                    else
+                    {
+                        string s = h3.NextSibling.InnerText.Replace(System.Environment.NewLine, string.Empty);
+                    }
+                }
+            }
+        }
+
         static void Main(string[] args)
         {
             //**TESTING CODE COMMENTED OUT BELOW**
-            //string content = "https://www.mbr-pwrc.usgs.gov/id/framlst/Idtips/h1620id.html";
+            //string content = "https://www.mbr-pwrc.usgs.gov/id/framlst/Idtips/h0350id.html";
+            //string content1 = "https://www.mbr-pwrc.usgs.gov/id/framlst/Idtips/h2721id.html";
             //string images = "https://www.mbr-pwrc.usgs.gov/id/framlst/photo_htm/p1620.html";
             //List<string[]> test = new List<string[]> { new string[] { "Order Filler", "Family Filler", content, images} };
             //GetContentFrameURLs(test);
             //CreateBirds(test);
+            //Test(content1);
 
             Run(_framesUrl);
-            
-
-
         }
     }
 }
