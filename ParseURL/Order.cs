@@ -2,15 +2,14 @@
 
 namespace ParseURL
 {
+    //Principal Entity in relation to Bird and Family
     public class Order
     {
         public Order(string name)
         {
             OrderName = name;
-            //Birds = new List<Bird>();
         }
         public int Id { get; set; }
         public string OrderName { get; set; }
-        //public ICollection<Bird> Birds { get; set; }
     }
 }

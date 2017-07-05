@@ -2,15 +2,18 @@
 
 namespace ParseURL
 {
+    //Principal Entity in relation to Bird, Dependent in relation to Order
     public class Family
     {
-        public Family(string name)
+        public Family(string name, Order order)
         {
             FamilyName = name;
-            //Birds = new List<Bird>();
+            Order = order;
         }
         public int Id { get; set; }
+        public int OrderId { get; set; }
         public string FamilyName { get; set; }
-        //public ICollection<Bird> Birds { get; set; }
+        public string CommonName { get; set; }
+        public virtual Order Order { get; set; }
     }
 }

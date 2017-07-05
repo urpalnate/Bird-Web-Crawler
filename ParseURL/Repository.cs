@@ -1,33 +1,26 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Data.Entity;
 
 namespace ParseURL
 {
     public class Repository
     {
-        public static void AddBird(Bird bird, int orderId, int familyId)
+        public static void AddBird(Bird bird)
         {
             //This is to avoid duplicate entries of the navigation properties Family and Order
             //The if conditions tests whether the Order/Family object already exists, because
-            //only EF will modify the Id property for Family/Order
-            //So by associating the PK of Family/Order with the FK of bird EF knows 
-            //to associate an existing Order/Family to this bird instance and doesn't create
-            //a duplicate Order/Family record
-            if (orderId > 0)
-            {
-                bird.Order = null;
-                bird.OrderId = orderId;
-            }
-            if (familyId > 0)
-            {
-                bird.Family = null;
-                bird.FamilyId = familyId;
-            }
+            //only EF will modify the FK property when it adds it to the Database Context.
+            //So by setting EntityState.Unchanged EF should stop change tracking and not add duplicate entries
             using (var context = new Context())
             {
+                if (bird.Family.OrderId > 0 && bird.Family.Order != null)
+                {
+                    context.Entry(bird.Family.Order).State = EntityState.Unchanged;
+                }
+                if (bird.FamilyId > 0 && bird.Family != null)
+                {
+                    context.Entry(bird.Family).State = EntityState.Unchanged; 
+                }
+
                 context.Birds.Add(bird);
                 context.SaveChanges();
             }

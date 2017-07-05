@@ -59,7 +59,10 @@
   <ItemGroup>
     <Compile Include="Bird.cs" />
     <Compile Include="BirdImage.cs" />
+    <Compile Include="BulletPoint.cs" />
+    <Compile Include="Color.cs" />
     <Compile Include="Context.cs" />
+    <Compile Include="Description.cs" />
     <Compile Include="Family.cs" />
     <Compile Include="Order.cs" />
     <Compile Include="Program.cs" />

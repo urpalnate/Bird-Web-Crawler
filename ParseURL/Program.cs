@@ -11,7 +11,8 @@ namespace ParseURL
         static HtmlWeb _web = new HtmlWeb();
         static Dictionary<string, Order> Orders = new Dictionary<string, Order>();
         static Dictionary<string, Family> Families = new Dictionary<string, Family>();
-        
+        static Dictionary<Family, Order> OrdersByFamily = new Dictionary<Family, Order>();
+
         const string _framesUrl = "https://www.mbr-pwrc.usgs.gov/id/framlst";
         const string _domain = "https://www.mbr-pwrc.usgs.gov";
         
@@ -26,42 +27,54 @@ namespace ParseURL
         //Order of string[]: order and family names, content and images urls respectively
         static void CreateBirds(List<string[]> urls)
         {
+            //***REMOVE IN PRODUCTION***testing list
+            List<Bird> testData = new List<Bird>();
             foreach (string[] dataBundle in urls)
             {
                 Bird bird = new Bird();
-                if (Orders.ContainsKey(dataBundle[0]))
-                {
-                    bird.OrderId = Orders[dataBundle[0]].Id;
-                }
-                else
+                //***REMOVE IN PRODUCTION***
+                testData.Add(bird);
+                //Assign Order and Family Navigation Properties
+                if (!Orders.ContainsKey(dataBundle[0]))
                 {
                     Order order = new Order(dataBundle[0]);
-                    bird.Order = order;
                     Orders.Add(dataBundle[0], order);
+                    //We know we need a new family because orders contain unique families
+                    Family family = new Family(dataBundle[1], order);
+                    family.OrderId = order.Id;
+                    bird.Family = family;
+                    Families.Add(dataBundle[1], family);
                 }
-
-                if (Families.ContainsKey(dataBundle[1]))
+                else if (!Families.ContainsKey(dataBundle[1]))
                 {
-                    bird.FamilyId = Families[dataBundle[1]].Id;
+                    Family family = new Family(dataBundle[1], Orders[dataBundle[0]]);
+                    family.OrderId = Orders[dataBundle[0]].Id;
+                    bird.Family = family;
+                    bird.FamilyId = family.Id;
+                    Families.Add(dataBundle[1], family);
                 }
+                //Assign the Id property because the logic in Repository that avoids duplicate entries requires it
                 else
                 {
-                    Family family = new Family(dataBundle[1]);
-                    Families.Add(dataBundle[1], family);
-                    bird.Family = family;
+                    bird.FamilyId = Families[dataBundle[1]].Id;
+                    bird.Family = Families[dataBundle[1]];
+                    bird.Family.OrderId = Orders[dataBundle[0]].Id;
+                    bird.Family.Order = Orders[dataBundle[0]];
                 }
-
+                
                 HtmlWeb web = _web;
                 //Here we load the data from the content frame
                 try
                 {
-                    HtmlDocument document = web.Load(dataBundle[2]);
+                    HtmlDocument document = new HtmlDocument();
+                    document = web.Load(dataBundle[2]);
+
                     AssignName(bird, document);
                     AssignScientificName(bird, document);
-                    //Assigning Lengths and ID tips use the same text
+                    //Assigning Lengths and the first Description object use the same strings found in descripText
                     List<string> descripText = AssignLengths(bird, document);
-                    AssignIdTips(bird, document, descripText);
-                    AssignColors(bird);
+                    AssignDescriptions(bird, document, descripText);
+                    AssignColorsAndHabitat(bird);
                 }
                 catch (WebException e)
                 {
@@ -72,13 +85,14 @@ namespace ParseURL
                     Console.ReadLine();
                     throw e;
                 }
-
                 try
                 {
                     //Grab images from images frame
-                    HtmlDocument document = web.Load(dataBundle[3]);
+                    HtmlDocument document = new HtmlDocument();
+                    document = web.Load(dataBundle[3]);
+
                     AssignImages(bird, document);
-                    Repository.AddBird(bird, bird.OrderId, bird.FamilyId);
+                    Repository.AddBird(bird);
                 }
                 catch (WebException e)
                 {
@@ -97,15 +111,13 @@ namespace ParseURL
         static void AssignName(Bird bird, HtmlDocument document)
         {
             string innerTitle = document.DocumentNode.SelectSingleNode("/html/head/title").InnerText;
-            string name = innerTitle.Replace("Identification tips", string.Empty);
-            bird.Name = name.TrimEnd(' ');
+            bird.Name = innerTitle.Replace("Identification tips", string.Empty).TrimEnd(' ');
         }
 
         static void AssignScientificName(Bird bird, HtmlDocument document)
         {
             string h1Inner = document.DocumentNode.SelectSingleNode("/html/body/h1").InnerText;
-            string scienceName = h1Inner.Replace(bird.Name, string.Empty).TrimStart(' ', '\r', '\n').TrimEnd(' ');
-            bird.ScientificName = scienceName;
+            bird.ScientificName = h1Inner.Replace(bird.Name, string.Empty).TrimStart(' ', '\r', '\n').TrimEnd(' ');
         }
         
         //We Return listItems because we use it when creating Identification Tips
@@ -132,6 +144,8 @@ namespace ParseURL
                             length += sizes[i];
                             i++;
                         }
+                        //Increment i to avoid a decimal value breaking the logic
+                        i += 3;
                     }
                     else
                     {
@@ -144,34 +158,59 @@ namespace ParseURL
                     }
                 }
             }
-
             bird.Length = ConvertString(length);
             bird.WingSpan = ConvertString(wingspan);
             return primaryIdTips;
         }
-        //Import primaryIdTips from AssignLengths to avoid duplication
-        static void AssignIdTips(Bird bird, HtmlDocument document, List<string> primaryIdTips)
+        //Import primaryIdTips from AssignLengths to avoid redundant work
+        static void AssignDescriptions(Bird bird, HtmlDocument document, List<string> primaryIdTips)
         {
-            //Identification Tips Section. We don't want the first two
-            string next;
+            //The descriptions in primaryIdTips are unqiue because we don't want the first two so I don't use AssignDescripionHelper()
+            string next = string.Empty;
+            Description primary = new Description(bird, "Primary");
+            bird.Descriptions.Add(primary);
             for (int i = 2; i < primaryIdTips.Count; i++)
             {
                 next = ScrubDescriptions(primaryIdTips[i]);
                 if (next != null)
                 {
-                    bird.IdentificationTips.Add(next);
+                    BulletPoint bullet = new BulletPoint(next, primary);
+                    primary.BulletPoints.Add(bullet);
                 }
             }
-            //Assign MorphOne and MorphTwo descriptions
-            AssignDescriptionHelper(document, bird.MorphOne, bird);
-            AssignDescriptionHelper(document, bird.MorphTwo, bird);
+            //Assign Secondary Descriptions
+            int ul = 2;
+            while (AssignDescriptionHelper(bird, document, ul))
+            {
+                ul++;
+            }
+            //Assign SimilarSpecies
+            var h3Nodes = document.DocumentNode.Descendants("h3");
+            foreach (var h3 in h3Nodes)
+            {
+                if (h3.InnerText.Contains("Similar"))
+                {
+                    bird.SimilarSpecies = h3.NextSibling.NextSibling.InnerText.Replace(System.Environment.NewLine, string.Empty);
+                }
+            }
         }
 
-        static void AssignColors(Bird bird)
+        static void AssignColorsAndHabitat(Bird bird)
         {
-            AssignColorsHelper(bird.IdentificationTips, bird);
-            AssignColorsHelper(bird.MorphOne, bird);
-            AssignColorsHelper(bird.MorphTwo, bird);
+            HashSet<string> colorsFound = new HashSet<string>();
+            //We check if this is a seabird only at Descriptions[0]
+            for (int i = 0; i < bird.Descriptions.Count; i++)
+            {
+                if (i == 0)
+                {
+                    AssignColorsAndHabitatHelper(bird, bird.Descriptions[i].BulletPoints, colorsFound, true);
+                }
+                else
+                {
+                    AssignColorsAndHabitatHelper(bird, bird.Descriptions[i].BulletPoints, colorsFound, false);
+                }
+                
+            }
         }
 
         static void AssignImages(Bird bird, HtmlDocument document)
@@ -185,7 +224,7 @@ namespace ParseURL
                 string url = string.Empty;
                 foreach (var anchor in imageUrls)
                 {
-                    BirdImage birdImage = new BirdImage();
+                    BirdImage birdImage = new BirdImage(bird);
                     url = anchor.GetAttributeValue("href", null);
                     url = url.TrimStart(' ', '.').Insert(0, _framesUrl);
                     try
@@ -215,9 +254,8 @@ namespace ParseURL
             //This is early in the process so I didn't include exception handling
             HtmlDocument document = web.Load(url);
             
-            //There are 22 orders of birds listed
-            //**CHANGE BACK TO < 23***
-            for (int i = 1; i < 2; i++)
+            //There are 22 orders of birds listed so i = 23 is production value
+            for (int i = 1; i < 4; i++)
             {
                 HtmlNode orderNode = document.DocumentNode.SelectSingleNode(TopLevelHelper(i));
                 string orderName = orderNode.FirstChild.InnerText;
@@ -278,39 +316,87 @@ namespace ParseURL
             else return null;
         }
 
-        static void AssignDescriptionHelper(HtmlDocument document, List<string> descriptions, Bird bird)
+        static bool AssignDescriptionHelper(Bird bird, HtmlDocument document, int ul)
         {
-            var morph1 = document.DocumentNode.SelectSingleNode("/html/body/ul[2]");
+            //Grap the h3 and assign as the Title of this SecondaryDescription. The h3 will always have an xpath [ul - 1]
+            var headingNode = document.DocumentNode.SelectSingleNode($"/html/body/h3[{ul - 1}]");
+            //This node contains all the bullet point descriptions
+            var descriptionNode = document.DocumentNode.SelectSingleNode($"/html/body/ul[{ul}]");
             string next = string.Empty;
-            if (morph1 != null)
+            if (descriptionNode != null)
             {
-                string morph1Text = morph1.InnerHtml;
-                List<string> tempDescriptions = morph1Text.Split('<').ToList();
+                string title = headingNode.InnerText.TrimEnd(' ', ':');
+                Description secondary = new Description(bird, title);
+                bird.Descriptions.Add(secondary);
+                
+                string descriptionText = descriptionNode.InnerHtml;
+                List<string> tempDescriptions = descriptionText.Split('<').ToList();
 
                 for (int i = 0; i < tempDescriptions.Count; i++)
-                {
+                { 
                     next = ScrubDescriptions(tempDescriptions[i]);
                     if (next != null)
                     {
-                        descriptions.Add(next);
+                        BulletPoint bullet = new BulletPoint(next, secondary);
+                        secondary.BulletPoints.Add(bullet);
+                    }
+                }
+                return true;
+            }
+            return false;
+        }
+
+        static void AssignColorsAndHabitatHelper(Bird bird, List<BulletPoint> descriptions, HashSet<string> colorsFound, bool seabirdCheck)
+        {
+            if (!seabirdCheck)
+            {
+                foreach (BulletPoint b in descriptions)
+                {
+                    string[] allWords = b.Text.Split(' ', '-');
+                    foreach (string w in allWords)
+                    {
+                        string next = w.ToLower();
+                        foreach (string possibleColor in Bird.PossibleColors)
+                        {
+                            //I need an exact match to avoid false positives, like picking up red from Fred
+                            if (next == possibleColor)
+                            {
+                                if (!colorsFound.Contains(next))
+                                {
+                                    Color color = new Color(bird, next);
+                                    bird.Colors.Add(color);
+                                    colorsFound.Add(next);
+                                }
+                            }
+                        }
                     }
                 }
             }
-        }
-
-        static void AssignColorsHelper(List<string> descriptions, Bird bird)
-        {
-            foreach (string s in descriptions)
+            //Determine if this is a seabird along with color checking
+            else
             {
-                var allWords = s.Split(' ', '-');
-                foreach (string w in allWords)
+                foreach (BulletPoint b in descriptions)
                 {
-                    foreach (string color in Bird.PossibleColors)
+                    string[] allWords = b.Text.Split(' ', '-');
+                    foreach (string w in allWords)
                     {
-                        //I need an exact match to avoid false positives, like picking up red from Fred
-                        if (w.ToLower() == color)
+                        string next = w.ToLower();
+                        foreach (string possibleColor in Bird.PossibleColors)
                         {
-                            bird.Colors.Add(color);
+                            //I need an exact match to avoid false positives, like picking up red from Fred
+                            if (next == possibleColor)
+                            {
+                                if (!colorsFound.Contains(next))
+                                {
+                                    Color color = new Color(bird, next);
+                                    bird.Colors.Add(color);
+                                    colorsFound.Add(next);
+                                }
+                            }
+                            if (next == "pelagic" || next == "seafaring")
+                            {
+                                bird.Pelagic = true;
+                            }
                         }
                     }
                 }
@@ -380,14 +466,16 @@ namespace ParseURL
         static void Main(string[] args)
         {
             //**TESTING CODE COMMENTED OUT BELOW**
-            string content = "https://www.mbr-pwrc.usgs.gov/id/framlst/Idtips/h1620id.html";
-            string images = "https://www.mbr-pwrc.usgs.gov/id/framlst/photo_htm/p1620.html";
-            List<string[]> test = new List<string[]> { new string[] { "Order Filler", "Family Filler", content, images} };
+            //string content = "https://www.mbr-pwrc.usgs.gov/id/framlst/Idtips/h1620id.html";
+            //string images = "https://www.mbr-pwrc.usgs.gov/id/framlst/photo_htm/p1620.html";
+            //List<string[]> test = new List<string[]> { new string[] { "Order Filler", "Family Filler", content, images} };
             //GetContentFrameURLs(test);
             //CreateBirds(test);
-            //GetTopLevelData(_framesUrl);
 
             Run(_framesUrl);
+            
+
+
         }
     }
 }
